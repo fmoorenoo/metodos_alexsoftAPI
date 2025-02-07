@@ -1,21 +1,8 @@
 import psycopg2
 from flask import Flask, jsonify, request
-# Fernando Montelongo Moreno
-
-# Login     X
-# Crear proyecto    X
-# Asignar gestor a proyecto     X
-# Asignar cliente a proyecto    X
-# Crear tareas a proyecto (debo estar asignado) X
-# Asignar programador a proyecto    X
-# Asignar programadores a tareas        X
-# Obtener programadores     X
-# Obtener proyectos (activos o todos)      X
-# Obtener tareas de un proyecto (sin asignar o asignada)       X
 
 app = Flask(__name__)
 
-# Conectarse a la base de datos y ejecutar una sentencia SQL
 def ejecutar_sql(consulta: str):
     connection = psycopg2.connect(
         host="localhost",
@@ -34,6 +21,7 @@ def ejecutar_sql(consulta: str):
 
     return empleados
 
+# INICIO DE SESIÓN
 @app.route('/login', methods=['POST'])
 def login():
     body_request = request.json
@@ -66,35 +54,58 @@ def login():
     )
 
 
-@app.route('/crearproyecto', methods=['POST'])
-def crear_proyecto():
+# PROYECTOS ACTIVOS
+@app.route('/proyecto/proyectos_activos', methods=['GET'])
+def obtener_proyectos_activos():
     try:
-        body_request = request.json
-        nombre = body_request['nombre']
-        descripcion = body_request['descripcion']
-        fecha_inicio = body_request['fecha_inicio']
-        fecha_finalizacion = body_request['fecha_finalizacion']
-        cliente = body_request['cliente']
-
-        query = f'''
-        INSERT INTO public."Proyecto" (
-            nombre, descripcion, fecha_creacion, fecha_inicio, fecha_finalizacion, cliente
-        ) VALUES (
-            '{nombre}',
-            '{descripcion}',
-            CURRENT_TIMESTAMP,
-            '{fecha_inicio}',
-            '{fecha_finalizacion}',
-            {cliente}
-        )
-        RETURNING id;
+        query = '''
+        SELECT * FROM public."Proyecto"
+        WHERE (fecha_finalizacion IS NULL) OR (fecha_finalizacion > CURRENT_TIMESTAMP)
+        ORDER BY id ASC 
         '''
-        proyecto = ejecutar_sql(query)
+        proyectos_activos = ejecutar_sql(query)
 
-        return jsonify({"id": proyecto[0]['id'], "mensaje": "Proyecto creado"}), 201
+        return jsonify(proyectos_activos)
+
+    except psycopg2.Error as e:
+        return jsonify({"error": "motivo del error: " + str(e)}), 500
+
+
+# PROYECTOS ACABADOS
+@app.route('/proyecto/proyectos_acabados', methods=['GET'])
+def obtener_proyectos_acabados():
+    try:
+        query = '''
+        SELECT * FROM public."Proyecto"
+        WHERE fecha_finalizacion < CURRENT_TIMESTAMP;
+        '''
+        proyectos = ejecutar_sql(query)
+
+        return jsonify(proyectos)
 
     except psycopg2.Error as e:
         return jsonify({"error": str(e)}), 500
+
+
+# OBTENER PROYECTOS DE UN GESTOR
+@app.route('/proyecto/proyectos_gestor', methods=['GET'])
+def obtener_proyectos_gestor_id():
+    try:
+        id_gestor = request.args.get('id')
+        query = f'''
+        SELECT p.* FROM public."GestoresProyecto" gp
+        JOIN public."Proyecto" p ON gp.proyecto = p.id
+        WHERE gp.gestor = {id_gestor} AND p.fecha_finalizacion > NOW();
+        '''
+        proyectos_gestor = ejecutar_sql(query)
+
+        return jsonify(proyectos_gestor)
+
+    except psycopg2.Error as e:
+        return jsonify({"error": "motivo del error: " + str(e)}), 500
+
+
+
 
 
 @app.route('/asignar_gestor', methods=['POST'])
@@ -126,37 +137,6 @@ def asignar_gestor_a_proyecto():
         return jsonify({"error": str(e)}), 500
 
 
-@app.route('/asignar_cliente', methods=['POST'])
-def asignar_cliente_a_proyecto():
-   try:
-       body_request = request.json
-       nombre_proyecto = body_request['nombre']
-       descripcion = body_request['descripcion']
-       fecha_inicio = body_request['fecha_inicio']
-       fecha_finalizacion = body_request['fecha_finalizacion']
-       cliente_id = body_request['cliente']
-
-       query_cliente = f'SELECT id FROM public."Cliente" WHERE id = {cliente_id};'
-       cliente = ejecutar_sql(query_cliente)
-       if not cliente:
-           return jsonify({"error": "El cliente indicado no existe"}), 404
-
-       query_asignar = f'''
-       INSERT INTO public."Proyecto" (nombre, descripcion, fecha_creacion, fecha_inicio, fecha_finalizacion, cliente)
-       VALUES (
-           '{nombre_proyecto}', 
-           '{descripcion}', 
-            CURRENT_TIMESTAMP, 
-           '{fecha_inicio}', 
-           '{fecha_finalizacion}', 
-            {cliente_id}
-        );'''
-
-       ejecutar_sql(query_asignar)
-       return jsonify({"mensaje": f"Cliente {cliente_id} asignado al proyecto '{nombre_proyecto}'"}), 201
-
-   except psycopg2.Error as e:
-       return jsonify({"error": str(e)}), 500
 
 @app.route('/crear_tareas', methods=['POST'])
 def crear_tareas_a_proyecto():
@@ -229,39 +209,6 @@ def asignar_programador_a_proyecto():
         return jsonify({"error": str(e)}), 500
 
 
-@app.route('/asignar_programador_a_tarea', methods=['POST'])
-def asignar_programador_a_tarea():
-    try:
-        body_request = request.json
-        programador_id = body_request['programador']
-        tarea_id = body_request['tarea']
-
-        query_programador = f'''
-        SELECT id FROM public."Programador" WHERE id = {programador_id};
-        '''
-        programador = ejecutar_sql(query_programador)
-        if not programador:
-            return jsonify({"error": "El programador indicado no existe"}), 404
-
-        query_tarea = f'''
-        SELECT id FROM public."Tarea" WHERE id = {tarea_id};
-        '''
-        tarea = ejecutar_sql(query_tarea)
-        if not tarea:
-            return jsonify({"error": "La tarea indicada no existe"}), 404
-
-        query_asignar = f'''
-        UPDATE public."Tarea"
-        SET programador = {programador_id}
-        WHERE id = {tarea_id};
-        '''
-        ejecutar_sql(query_asignar)
-
-        return jsonify({"mensaje": f"Programador {programador_id} asignado a la tarea {tarea_id} exitosamente"}), 200
-
-    except psycopg2.Error as e:
-        return jsonify({"error": str(e)}), 500
-
 
 @app.route('/empleado/programadores',methods=['GET'])
 def obtener_programadores():
@@ -279,19 +226,8 @@ def obtener_programadores():
 
 
 
-@app.route('/proyecto/proyectos', methods=['GET'])
-def obtener_proyectos():
-    try:
-        query = '''
-        SELECT * FROM public."Proyecto"
-        ORDER BY id ASC 
-        '''
-        proyectos = ejecutar_sql(query)
 
-        return jsonify(proyectos)
 
-    except psycopg2.Error as e:
-        return jsonify({"error": str(e)}), 500
 
 
 @app.route('/tareas',methods=['GET'])
