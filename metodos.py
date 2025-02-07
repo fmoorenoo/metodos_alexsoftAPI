@@ -105,9 +105,7 @@ def obtener_proyectos_gestor_id():
         return jsonify({"error": "motivo del error: " + str(e)}), 500
 
 
-
-
-
+# ASIGNAR GESTOR A PROYECTO
 @app.route('/asignar_gestor', methods=['POST'])
 def asignar_gestor_a_proyecto():
     try:
@@ -136,6 +134,19 @@ def asignar_gestor_a_proyecto():
     except psycopg2.Error as e:
         return jsonify({"error": str(e)}), 500
 
+
+# OBTENER TAREAS DE UN PROYECTO
+@app.route('/tareas', methods=['GET'])
+def obtener_tareas_de_un_proyecto():
+    try:
+        proyecto_id = request.args.get('id', type=int)
+
+        tareas = ejecutar_sql(f'SELECT * FROM public."Tarea" WHERE proyecto = {proyecto_id}')
+
+        return jsonify(tareas)
+
+    except psycopg2.Error as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route('/crear_tareas', methods=['POST'])
@@ -226,25 +237,6 @@ def obtener_programadores():
 
 
 
-
-
-
-
-@app.route('/tareas',methods=['GET'])
-def obtener_tareas_de_un_proyecto():
-   try:
-       body_request = request.json
-       proyecto_id = body_request['id']
-       tareas = ejecutar_sql(
-           f"""
-           SELECT * FROM public."Tarea" t
-           WHERE t.proyecto = {proyecto_id}
-           """
-       )
-       return tareas
-
-   except psycopg2.Error as e:
-       return jsonify({"error": str(e)}), 500
 
 
 
