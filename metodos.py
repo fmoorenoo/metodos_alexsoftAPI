@@ -149,6 +149,7 @@ def obtener_tareas_de_un_proyecto():
         return jsonify({"error": str(e)}), 500
 
 
+# CREAR TAREAS PARA UN PROYECTO
 @app.route('/crear_tareas', methods=['POST'])
 def crear_tareas_a_proyecto():
    try:
@@ -156,7 +157,6 @@ def crear_tareas_a_proyecto():
        nombre = body_request['nombre']
        descripcion = body_request['descripcion']
        estimacion = body_request['estimacion']
-       fecha_creacion = body_request['fecha_creacion']
        fecha_finalizacion = body_request['fecha_finalizacion']
        programador_id = body_request['programador']
        proyecto_id = body_request['proyecto']
@@ -178,7 +178,7 @@ def crear_tareas_a_proyecto():
            '{nombre}', 
            '{descripcion}', 
             {estimacion}, 
-            '{fecha_creacion}', 
+            CURRENT_TIMESTAMP, 
             '{fecha_finalizacion}', 
             {programador_id}, 
             {proyecto_id}
